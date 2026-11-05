@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# 同一分支連續 push 時，取消還在跑的舊 run —— 只留最新一筆，省免費額度
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          # 快取 ~/.m2，第二次之後跑快很多
+          cache: maven
+
+      # 不需要 GOOGLE_API_KEY / GOOGLE_MAPS_API_KEY / 外部資料庫：
+      # 測試是純單元測試、@WebMvcTest slice，以及一個 @DataJpaTest（MonthlyCallCounterTest，用內嵌的 H2 in-memory），
+      # 都不會啟動完整 application context，因此不解析 application.yml 那兩個無預設值的 placeholder，也不會打到真實 Google API。
+      # 未來若新增 @SpringBootTest，這裡就要補 env / service container，先看這行註解再動手。
+      - name: Run tests
+        run: mvn -B test
+        working-directory: backend

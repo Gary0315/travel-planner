@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-cream: oklch(0.97 0.025 75);
+  --color-paper: oklch(0.985 0.015 75);
+  --color-ink: oklch(0.28 0.04 50);
+  --color-muted: oklch(0.55 0.03 50);
+  --color-coral: oklch(0.72 0.16 35);
+  --color-coral-deep: oklch(0.6 0.18 35);
+  --color-mint: oklch(0.78 0.11 165);
+  --color-mint-deep: oklch(0.55 0.12 165);
+  --color-sky-soft: oklch(0.82 0.08 230);
+  --color-butter: oklch(0.9 0.1 90);
+  --color-border-soft: oklch(0.9 0.02 75);
+  --color-pink-soft: oklch(0.92 0.08 320);
+
+  --color-cat-sight-bg: oklch(0.92 0.06 230);
+  --color-cat-sight-fg: oklch(0.4 0.13 230);
+  --color-cat-food-bg: oklch(0.93 0.08 60);
+  --color-cat-food-fg: oklch(0.48 0.15 50);
+  --color-cat-stay-bg: oklch(0.92 0.07 165);
+  --color-cat-stay-fg: oklch(0.42 0.13 165);
+
+  --font-display: "Quicksand", "Noto Sans TC", ui-rounded, system-ui, sans-serif;
+  --font-hand: "Caveat", "Indie Flower", cursive;
+}
+
+:root {
+  /* shadow tokens — kept outside @theme so dark mode can flip without
+     affecting Tailwind utility generation for color tokens */
+  --pop-shadow-color: oklch(0.28 0.04 50);
+  --pop-shadow-sm: 2px 2px 0 var(--pop-shadow-color);
+  --pop-shadow: 3px 3px 0 var(--pop-shadow-color);
+  --pop-shadow-lg: 4px 4px 0 var(--pop-shadow-color);
+  --pop-shadow-active: 3px 3px 0 oklch(0.6 0.18 35);
+}
+
+/* 深色模式。
+   規則：@theme 裡**每一個**會出現在「底色 × 文字」組合裡的顏色，這裡都必須有對應值。
+   漏掉的後果不是變醜是看不見——ink 在這裡翻成淺色(0.92)，若某個 bg-* 仍是淺色，
+   就變成淺字印在淺底上（2026-08-03 修：butter/sky-soft/mint/pink-soft 四個彩色底
+   當初漏翻，例句 chips、登入按鈕、喚醒橫幅在深色模式下全部糊掉）。
+   新增彩色 token 時請同步在此加一行。 */
+html.dark {
+  --color-cream: oklch(0.18 0.02 50);
+  --color-paper: oklch(0.22 0.03 50);
+  --color-ink: oklch(0.92 0.02 50);
+  --color-muted: oklch(0.7 0.02 50);
+  --color-border-soft: oklch(0.32 0.02 50);
+
+  /* 彩色底：保色相、壓亮度到 0.44–0.46，配 ink(0.92) 的淺字。
+     chroma 一併降低——深底上的高彩度會過吵。
+     用途：例句 chips(CHIP_BGS)、登入/註冊 pill、喚醒中橫幅(butter)、
+     失敗橫幅(pink-soft)、交通方式選中態與 checklist(mint)。 */
+  --color-butter: oklch(0.46 0.08 90);
+  --color-sky-soft: oklch(0.45 0.07 230);
+  --color-mint: oklch(0.44 0.08 165);
+  --color-pink-soft: oklch(0.45 0.08 320);
+
+  /* 這兩個只當文字色（text-coral-deep / text-mint-deep），方向相反要調**亮**，
+     否則深底上的暗字一樣讀不到——錯誤訊息「⚠️ …」用的就是 coral-deep。 */
+  --color-coral-deep: oklch(0.78 0.14 35);
+  --color-mint-deep: oklch(0.75 0.12 165);
+
+  /* category badge 是 bg/fg 成對，兩邊一起翻才維持得住對比 */
+  --color-cat-sight-bg: oklch(0.36 0.06 230);
+  --color-cat-sight-fg: oklch(0.85 0.09 230);
+  --color-cat-food-bg: oklch(0.36 0.06 60);
+  --color-cat-food-fg: oklch(0.86 0.1 60);
+  --color-cat-stay-bg: oklch(0.36 0.06 165);
+  --color-cat-stay-fg: oklch(0.85 0.09 165);
+
+  --pop-shadow-color: oklch(0.06 0.01 50);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--color-ink);
+  background-color: var(--color-cream);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.scrollbar-thin-pink::-webkit-scrollbar {
+  height: 6px;
+}
+.scrollbar-thin-pink::-webkit-scrollbar-thumb {
+  background: var(--color-coral);
+  border-radius: 9999px;
+  opacity: 0.5;
+}
+
+@keyframes roamie-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+@keyframes roamie-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+@keyframes roamie-wiggle {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+@keyframes roamie-toast-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.roamie-bounce { animation: roamie-bounce 1s infinite; }
+.roamie-pulse { animation: roamie-pulse 1.4s infinite; }
+.roamie-toast-in { animation: roamie-toast-in 0.22s ease-out; }
+
+/* Auth modal / sheet：對齊 variation-b.jsx 的 authFade / authPop / authSlideUp */
+@keyframes roamie-auth-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes roamie-auth-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes roamie-auth-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}

@@ -1,0 +1,121 @@
+spring:
+  application:
+    name: travel-planner-backend
+  autoconfigure:
+    # 排除 Spring Security 的預設使用者自動設定。它會在每次啟動印一組隨機密碼 + 一句
+    # 「production 前必須改設定」的 WARN，但本專案 SecurityConfig 已 disable formLogin
+    # 與 httpBasic、且 anyRequest().permitAll()，那組帳密無處可用 —— 是假警訊。
+    # 留著的真正代價是「習慣忽略啟動時的 WARN」，以後真警訊也會被一起略過。
+    # 全 repo 未注入 AuthenticationManager / UserDetailsService / PasswordEncoder
+    # （登入走 Google ID token 驗證，見 SPEC §19），排除後沒有東西依賴它。
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  datasource:
+    url: ${DB_URL:jdbc:h2:mem:traveldb;DB_CLOSE_DELAY=-1}
+    driver-class-name: ${DB_DRIVER:org.h2.Driver}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+    # HikariCP 走 env 覆寫，預設值 = HikariCP 出廠值（dev 行為不變）。
+    # prod 配 Neon 時調小並縮短壽命：配合 scale-to-zero 省 CU-hours、避免持有 suspend 後的死連線（值見 SPEC.md §10.1）
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:10}
+      idle-timeout: ${DB_POOL_IDLE_TIMEOUT:600000}
+      max-lifetime: ${DB_POOL_MAX_LIFETIME:1800000}
+  jpa:
+    hibernate:
+      ddl-auto: ${DB_DDL_AUTO:create-drop}
+    # 刻意不設 database-platform / hibernate.dialect：Hibernate 6 會從 JDBC metadata 自己判
+    # （啟動 log 的「Database version」就是它查到的）。顯式指定只會換來一行
+    # HHH90000025「does not need to be specified explicitly」的 WARN。
+    # 原本的 DB_DIALECT 環境變數因此不再被讀取，Render 上那個設定可以刪掉。
+    #
+    # open-in-view 顯式關閉：三個 entity（ItineraryEntity / PlacePhotoCacheEntity / UserEntity）
+    # 完全沒有關聯欄位，沒有 lazy loading 需求，OSIV 對本專案毫無用處，卻會讓
+    # /generate 這種動輒 20–30 秒的請求全程多掛一個 EntityManager。不設會有一行預設警告。
+    open-in-view: false
+    show-sql: false
+  h2:
+    console:
+      enabled: ${H2_CONSOLE:true}
+  ai:
+    google:
+      genai:
+        api-key: ${GOOGLE_API_KEY}
+        chat:
+          options:
+            # 預設使用 preview 模型；preview 被 Google 下架時可透過 GEMINI_MODEL 環境變數
+            # 緊急切換到 GA fallback（例如 models/gemini-2.5-flash），無需 rebuild。詳見 SPEC §6.1。
+            model: ${GEMINI_MODEL:models/gemini-3.1-flash-lite}
+  session:
+    # Spring Session 把 session 寫到主 DB（H2 dev / PostgreSQL prod）→ 跨重啟存活、跨實例共享
+    # 詳見 SPEC §19.4
+    store-type: jdbc
+    timeout: 14d
+    jdbc:
+      # embedded: H2 / HSQLDB 啟動時自動建 SPRING_SESSION 與 SPRING_SESSION_ATTRIBUTES 兩張表
+      # prod PostgreSQL：首次部署改成 always；之後可改 never 避免每次啟動跑 schema
+      initialize-schema: ${SESSION_SCHEMA_INIT:embedded}
+
+server:
+  port: 8080
+  servlet:
+    session:
+      timeout: 14d
+      cookie:
+        http-only: true
+        same-site: lax
+        # 本機開發 http://localhost 必須關 secure 才能傳 cookie；prod 透過 env 開啟
+        secure: ${SESSION_COOKIE_SECURE:false}
+
+google:
+  maps:
+    api-key: ${GOOGLE_MAPS_API_KEY}
+
+app:
+  auth:
+    google:
+      # Google OAuth Client ID（前後端共用）；未設時登入功能停用，AuthController 回 503。詳見 SPEC §19.9
+      client-id: ${GOOGLE_OAUTH_CLIENT_ID:}
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+  rate-limit:
+    # 全站每日生成上限（不分 IP），守 Gemini / Places 免費額度。台灣時間 00:00 換日。
+    # 計數存資料庫（api_call_counter 表，counter_name = site.generate-requests），Render 休眠重啟不歸零；
+    # 資料庫連不上時照常放行（Gemini 是免費方案、Places 另有自己的計數，SPEC §11.1）。
+    # 本機驗收時用環境變數改小（DAILY_QUOTA=3）驗第 4 次被擋，不必動 code；設 0 = 全部擋掉、不碰資料庫
+    daily-quota: ${DAILY_QUOTA:100}
+    # client IP 判定要從 X-Forwarded-For 右邊跳過幾段「基礎設施自己加的」尾段。
+    # 這裡的 0 = 假設前面沒有 proxy（本機／裸機）；**正式站由 Render env var 設 TRUSTED_PROXY_HOPS=1**
+    # ——實測拓樸是 使用者 → Cloudflare(橘雲) → Render → app，XFF 恆 2 段、最右邊是 Cloudflare egress。
+    # 判讀規則：先確認自己前面有幾層 proxy(K)，設 K-1；啟動 log「首次觀測：N 段」只用來交叉驗證。詳見 SPEC §11
+    trusted-proxy-hops: ${TRUSTED_PROXY_HOPS:0}
+  api-quota:
+    # Gemini 每日「對外呼叫」上限。數的是實際打出去的呼叫（失敗自動重試那一次也算），不是進來的請求 ——
+    # 上面的 daily-quota 數請求，而一次請求最多打 2 次 Gemini，兩者不是同一個數字。
+    # 預設 200 = 預設 daily-quota 100 × 每次請求最多 2 次呼叫。正式站的值要對照 AI Studio 上實際的每日額度來設。
+    # 本機驗收：GEMINI_DAILY_CALLS=0 → 每次生成都在發出呼叫前被擋（429），不花任何額度。
+    # 計數存資料庫（counter_name = gemini.itinerary），太平洋時間午夜換日，Render 休眠重啟不歸零。
+    # 資料庫連不上時照常放行：Gemini key 是免費方案，超過額度 Google 只會拒絕、不收費。開了帳單就要改成擋下（SPEC §11.1）。
+    gemini-daily-calls: ${GEMINI_DAILY_CALLS:200}
+    # Places 四個對外呼叫點各自的「每月」呼叫上限（SPEC §11.2）。Google 的免費次數按計費項目、每月算，超過不擋、直接收費；
+    # 後台能設的硬上限只有「整支 API 合計、每日」一個數字，所以每個呼叫點在程式裡各自數。
+    # 數字由來：Find Place 每月免費 5,000 次，旅館查座標與照片查參照共用 → 500 + 4,000，留緩衝；
+    # Nearby Search 連帶計 Contact／Atmosphere Data，實質免費 1,000 次 → 800；Place Photo 免費 1,000 次 → 800。
+    # 不訂滿：本機開發用的是同一把 key，本機打出去的次數正式站數不到。
+    # 每月 1 日太平洋時間午夜換月（對齊 Google）。計數存資料庫（api_call_counter 表），Render 休眠重啟不歸零；
+    # 本機 H2 是記憶體資料庫，重啟就歸零。資料庫連不上時當作已滿（寧可少顯示，也不要沒數到照打）。
+    # 到上限：旅館顯示「住宿建議暫時查不到」，照片回預設圖。設 0 = 該呼叫點全部擋掉、不碰資料庫（本機驗收用）。
+    places-monthly:
+      hotel-find-place: ${PLACES_MONTHLY_HOTEL_FIND_PLACE:500}
+      hotel-nearby: ${PLACES_MONTHLY_HOTEL_NEARBY:800}
+      photo-find-place: ${PLACES_MONTHLY_PHOTO_FIND_PLACE:4000}
+      photo-image: ${PLACES_MONTHLY_PHOTO_IMAGE:800}
+  itinerary:
+    # 超過 N 天未被讀取的 itinerary 會被排程刪除
+    retention-days: 90
+    # 每日凌晨 3 點執行清理（Spring cron 6-field：秒 分 時 日 月 週）
+    cleanup-cron: "0 0 3 * * *"
+  place-photo-cache:
+    # photo_reference 快取 TTL（天）；同時供 PlaceServiceImpl 判斷過期與 ItineraryCleanupJob 排程刪除
+    retention-days: 30

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice">
+    <defs><linearGradient id="bg256" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#E5D9F5"/>
+      <stop offset="100%" stop-color="#C5AEEA" stop-opacity="0.55"/>
+    </linearGradient></defs>
+    <rect width="800" height="520" fill="url(#bg256)"/>
+    
+      <circle cx="640" cy="130" r="58" fill="#FFE066" opacity="0.9"/>
+      <ellipse cx="180" cy="160" rx="60" ry="20" fill="white" opacity="0.88"/>
+      <ellipse cx="220" cy="148" rx="40" ry="18" fill="white" opacity="0.88"/>
+      <ellipse cx="540" cy="200" rx="48" ry="16" fill="white" opacity="0.7"/>
+      <path d="M0,420 Q150,310 300,360 T600,320 T820,380 L820,540 L0,540 Z" fill="#9C7DD5" opacity="0.7"/>
+      <path d="M0,460 Q200,390 400,420 T820,440 L820,540 L0,540 Z" fill="#C5AEEA"/>
+    <g transform="translate(400 260)">
+      <circle r="92" fill="white" opacity="0.55"/>
+      <text text-anchor="middle" dominant-baseline="central" font-size="120" font-family="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif">🏘️</text>
+    </g>
+  </svg>
